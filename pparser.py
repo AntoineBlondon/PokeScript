@@ -193,29 +193,46 @@ def p_type_specifier(p):
                      | STR
                      | UNTYPED
                      | VOID
-                     | LIST LT type_specifier GT'''
-    if len(p) == 5:
+                     | LIST LT type_specifier GT
+                     | type_specifier LT poke_type GT'''
+    if p[1] == 'LIST':
         p[0] = f"LIST<{p[3]}>"
+    elif len(p) == 5:
+        p[0] = f"POKE{p[1]}<{p[3]}>"
     else:
         p[0] = keywords.get(p[1], p[1])
+
+def p_poketype(p):
+    '''poke_type : FIRE
+                 | WATER
+                 | GRASS
+                 | ELECTRIC
+                 | ICE
+                 | PSYCHIC
+                 | GROUND
+                 | FIGHTING
+                 | POISON
+                 | GHOST
+                 | DRAGON
+                 | DARK
+                 | NORMAL
+                 | BUG
+                 | FLYING
+                 | ROCK
+                 | STEEL
+                 | FAIRY'''
+    p[0] = p[1]
 
 
 
 
 def p_assignment(p):
-    '''assignment : IDENTIFIER EQUALS expression
-                  | IDENTIFIER double_operation expression'''
+    '''assignment : IDENTIFIER EQUALS expression'''
     if p[2] in ["+=", "-=", "*=", "/="]:
         p[0] = ('double_operation', p[1], p[2], p[3], p.lineno(1), find_column(p.lexpos(1)))
     else:
         p[0] = ('assign', p[1], p[3], p.lineno(1), find_column(p.lexpos(1)))
 
-def p_double_operation(p):
-    '''double_operation : PLUSEQ
-                        | MINUSEQ
-                        | MULEQ
-                        | DIVEQ'''
-    p[0] = p[1]
 
 def p_expression_binop(p):
     '''expression : expression PLUS expression
@@ -278,10 +295,6 @@ def p_expression(p):
     '''expression : LPAREN expression RPAREN'''
     p[0] = p[2]
 
-def p_expression_cast(p):
-    '''expression : expression RARROW type_specifier'''
-    p[0] = ('casting', p[1], p[3])
-    
 
 def p_error(p):
     if p:

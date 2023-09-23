@@ -39,9 +39,9 @@ class RuntimeContext:
             lexpos = ast[-1] if len(ast) > 1 and type(ast[-1]) == int else "unknown"
             if lineno != "unknown" and lexpos != "unknown": ast = ast[:-2]
 
-            if node_type in ['binop', 'number', 'float', 'boolean', 'string','list_literal', 'identifier', 'compare', 'casting', 'logical_operation']:
+            if node_type in ['binop', 'number', 'float', 'boolean', 'string','list_literal', 'identifier', 'compare', 'casting', 'logical_operation', 'poke_type']:
                 return self.evaluate_expression(ast, context)
-            elif node_type in ['declare', 'assign', 'double_operation']:
+            elif node_type in ['declare', 'assign']:
                 return self.manage_variable(ast, context)
             elif node_type in ['if', 'if-else', 'for_loop', 'while_loop', 'do_while_loop', 'switch']:
                 return self.control_flow(ast, context)
@@ -101,13 +101,17 @@ class RuntimeContext:
             value = self.run_ast(expr, context)
             value = cast(value, type_to_cast)
             return value
+        elif node_type == "poke_type":
+            return context.local_scope.get(ast[1][1], self.symbol_table.get(ast[1][1], None))['poketype']
         
     def handle_binop(self, ast, context):
         _, op, left, right = ast
+        left_poke_type = self.run_ast(("poke_type", left), context)
         left_value = self.run_ast(left, context)
+        right_poke_type = self.run_ast(("poke_type", right), context)
         right_value = self.run_ast(right, context)
         if op == '+':
-            return add(left_value, right_value)
+            return add(left_poke_type, left_value, right_poke_type, right_value)
         elif op == '-':
             return substract(left_value, right_value)
         elif op == '*':
@@ -166,17 +170,27 @@ class RuntimeContext:
                 list_value = self.run_ast(elements, context)
                 check_type(list_value, var_type)
                 if context.is_local:
-                    context.local_scope[var_name] = {'type': var_type, 'value': list_value}
+                    context.local_scope[var_name] = {'type': var_type, 'poketype': "NORMAL", 'value': list_value}
                     
                 else:
-                    self.symbol_table[var_name] = {'type': var_type, 'value': list_value}
+                    self.symbol_table[var_name] = {'type': var_type, 'poketype': "NORMAL", 'value': list_value}
+            elif var_type.startswith("POKE"):
+                value = self.run_ast(elements, context)
+                poke_type = var_type.split("<")[1].split(">")[0]
+                var_type = var_type[4:].split("<")[0]
+                
+                check_type(value, var_type)
+                if context.is_local:
+                    context.local_scope[var_name] = {'type': var_type, 'poketype': poke_type, 'value': value}
+                else:
+                    self.symbol_table[var_name] = {'type': var_type, 'poketype': poke_type, 'value': value}
             else:
                 value = self.run_ast(elements, context)
                 check_type(value, var_type)
                 if context.is_local:
-                    context.local_scope[var_name] = {'type': var_type, 'value': value}
+                    context.local_scope[var_name] = {'type': var_type, 'poketype': "NORMAL", 'value': value}
                 else:
-                    self.symbol_table[var_name] = {'type': var_type, 'value': value}
+                    self.symbol_table[var_name] = {'type': var_type, 'poketype': "NORMAL", 'value': value}
 
         elif node_type == 'assign':
             _, var_name, expr = ast
@@ -506,7 +520,7 @@ def merge_asts(main_ast, imported_ast):
 
 
 
-def add(a, b):
+def add(poke_a, a, poke_b, b):
     if isinstance(a, list) and not isinstance(b, list):
         b = [b]
     elif not isinstance(a, list) and isinstance(b, list):
@@ -515,7 +529,8 @@ def add(a, b):
         return a + str(b)
     elif isinstance(a, (int, float)) and isinstance(b, str):
         return str(a) + b
-    return a + b
+
+    return a + b * poketype_multiplier(poke_b, poke_a)
 
 def substract(a, b):
     if isinstance(a, list) and not isinstance(b, list): # [1, 2, 3, 4] - 4 = [1, 2, 3]
@@ -561,4 +576,36 @@ class ExecutionASTContext:
 
 
 
+
+def poketype_multiplier(attack_type, defend_type):
+    type_chart = {
+        "NORMAL": {"ROCK": 0.5, "GHOST": 0, "STEEL": 0.5},
+        "FIRE": {"FIRE": 0.5, "WATER": 0.5, "GRASS": 2, "ICE": 2, "BUG": 2, "ROCK": 0.5, "DRAGON": 0.5, "STEEL": 2},
+        "WATER": {"FIRE": 2, "WATER": 0.5, "GRASS": 0.5, "GROUND": 2, "ROCK": 2, "DRAGON": 0.5},
+        "ELECTRIC": {"WATER": 2, "ELECTRIC": 0.5, "GROUND": 0, "FLYING": 2, "DRAGON": 0.5},
+        "GRASS": {"FIRE": 0.5, "WATER": 2, "GRASS": 0.5, "POISON": 0.5, "GROUND": 2, "FLYING": 0.5, "BUG": 0.5, "ROCK": 2, "DRAGON": 0.5, "STEEL": 0.5},
+        "ICE": {"FIRE": 0.5, "WATER": 0.5, "GRASS": 2, "ICE": 0.5, "GROUND": 2, "FLYING": 2, "DRAGON": 2, "STEEL": 0.5},
+        "FIGHTING": {"NORMAL": 2, "ICE": 2, "POISON": 0.5, "FLYING": 0.5, "PSYCHIC": 0.5, "BUG": 0.5, "ROCK": 2, "GHOST": 0, "DARK": 2, "STEEL": 2, "FAIRY": 0.5},
+        "POISON": {"GRASS": 2, "POISON": 0.5, "GROUND": 0.5, "BUG": 2, "ROCK": 0.5, "GHOST": 0.5, "STEEL": 0, "FAIRY": 2},
+        "GROUND": {"FIRE": 2, "ELECTRIC": 2, "GRASS": 0.5, "POISON": 2, "FLYING": 0, "BUG": 0.5, "ROCK": 2, "STEEL": 2},
+        "FLYING": {"ELECTRIC": 0.5, "GRASS": 2, "FIGHTING": 2, "BUG": 2, "ROCK": 0.5, "STEEL": 0.5},
+        "PSYCHIC": {"FIGHTING": 2, "POISON": 2, "PSYCHIC": 0.5, "DARK": 0, "STEEL": 0.5},
+        "BUG": {"FIRE": 0.5, "GRASS": 2, "FIGHTING": 0.5, "POISON": 0.5, "FLYING": 0.5, "PSYCHIC": 2, "GHOST": 0.5, "DARK": 2, "STEEL": 0.5, "FAIRY": 0.5},
+        "ROCK": {"FIRE": 2, "ICE": 2, "FIGHTING": 0.5, "GROUND": 0.5, "FLYING": 2, "BUG": 2, "STEEL": 0.5},
+        "GHOST": {"NORMAL": 0, "PSYCHIC": 2, "GHOST": 2, "DARK": 0.5},
+        "DRAGON": {"DRAGON": 2, "STEEL": 0.5, "FAIRY": 0},
+        "DARK": {"FIGHTING": 0.5, "PSYCHIC": 2, "GHOST": 2, "DARK": 0.5, "FAIRY": 0.5},
+        "STEEL": {"FIRE": 0.5, "WATER": 0.5, "ELECTRIC": 0.5, "ICE": 2, "ROCK": 2, "STEEL": 0.5, "FAIRY": 2},
+        "FAIRY": {"FIRE": 0.5, "FIGHTING": 2, "POISON": 0.5, "DRAGON": 2, "DARK": 2, "STEEL": 0.5},
+    }
+    
+    attack_type = attack_type.upper()
+    defend_type = defend_type.upper()
+    
+    if attack_type not in type_chart:
+        raise ValueError(f"{attack_type} is not a valid Pokémon type")
+    if defend_type not in type_chart[attack_type] and defend_type not in type_chart:
+        raise ValueError(f"{defend_type} is not a valid Pokémon type")
+    
+    return type_chart.get(attack_type, {}).get(defend_type, 1)
 

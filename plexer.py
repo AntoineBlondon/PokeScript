@@ -27,6 +27,26 @@ keywords = {
     'true': 'TRUE',     # For declaring boolean variables
     'false': 'FALSE',   # For declaring boolean variables 
     'in': 'IN', 
+
+
+    'fire': 'FIRE',
+    'water': 'WATER',
+    'grass': 'GRASS',
+    'electric': 'ELECTRIC',
+    'ice': 'ICE',
+    'psychic': 'PSYCHIC',
+    'ground': 'GROUND',
+    'fighting': 'FIGHTING',
+    'poison': 'POISON',
+    'ghost': 'GHOST',
+    'dragon': 'DRAGON',
+    'dark': 'DARK',
+    'normal': 'NORMAL',
+    'bug': 'BUG',
+    'flying': 'FLYING',
+    'rock': 'ROCK', 
+    'steel': 'STEEL', 
+    'fairy': 'FAIRY',
 }
 
 tokens = [
@@ -42,6 +62,8 @@ tokens = [
     'PIPE',
     'EXCLAMATION', 'AMPERSAND', 'HAT',
     'INTEGER_LITERAL', 'STRING_LITERAL', 'FLOAT_LITERAL',
+    
+    
 ] + list(keywords.values())
 
 
